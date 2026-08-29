@@ -1,5 +1,5 @@
 /* 穿搭炼金屋 · Service Worker —— 离线可用的本地资源缓存 */
-const VERSION = "wearchemy-v9";
+const VERSION = "wearchemy-v10";
 const SHELL = [
   "./",
   "./index.html",
