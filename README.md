@@ -31,47 +31,121 @@ Wearchemy 由 Wear（穿着）与 Alchemy（炼金术）融合而来，寓意将
 
 ## 🚀 启动与部署
 
-### 1. 本地快速运行 (开发/局域网预览)
+Wearchemy 没有 npm 依赖。准备好 Node.js 18 或更高版本后，即可直接运行。
 
-需要已安装 Node.js。
+### 1. 本地运行
 
-`ash
-# 启动零依赖后端与静态服务
+```bash
+git clone https://github.com/NIU-123370/Wearchemy.git
+cd Wearchemy
 node server.js
-`
-*   **客户端预览**：浏览器打开 [http://127.0.0.1:8787/index.html](http://127.0.0.1:8787/index.html)
-*   **小程序模拟器**：浏览器打开 [http://127.0.0.1:8787/miniprogram.html](http://127.0.0.1:8787/miniprogram.html)
-*   *局域网手机访问*：执行 $env:HOST="0.0.0.0" 后启动服务，手机访问 http://<电脑局域网IP>:8787。*(注：非 HTTPS 协议下，浏览器会限制 AR 摄像头与 PWA 安装功能)*
+```
 
-### 2. Docker 一键部署 (服务器推荐)
+启动后可访问：
 
-使用 Docker 打包部署，数据隔离且部署纯粹。
+* **客户端**：[http://127.0.0.1:8787/index.html](http://127.0.0.1:8787/index.html)
+* **小程序模拟器**：[http://127.0.0.1:8787/miniprogram.html](http://127.0.0.1:8787/miniprogram.html)
+* **健康检查**：[http://127.0.0.1:8787/api/health](http://127.0.0.1:8787/api/health)
 
-`ash
-# 1. 构建 Docker 镜像
-docker build -t wearchemy .
+局域网预览时可监听所有网卡：
 
-# 2. 创建真实挂载目录（防止容器销毁后数据丢失）
-mkdir -p /root/wearchemy-data
+```bash
+HOST=0.0.0.0 PORT=8787 node server.js
+```
 
-# 3. 运行容器
+### 2. Ubuntu 服务器直接部署
+
+当服务器无法访问 Docker Hub 时，可以使用经过验证的 Node.js + systemd 方式部署：
+
+```bash
+sudo apt update
+sudo apt install -y nodejs git
+
+git clone https://github.com/NIU-123370/Wearchemy.git /root/Wearchemy
+cd /root/Wearchemy
+node --check server.js
+```
+
+创建 `/etc/systemd/system/wearchemy.service`：
+
+```ini
+[Unit]
+Description=Wearchemy Web Application
+After=network.target
+
+[Service]
+Type=simple
+User=root
+WorkingDirectory=/root/Wearchemy
+Environment=HOST=0.0.0.0
+Environment=PORT=8787
+ExecStart=/usr/bin/node /root/Wearchemy/server.js
+Restart=always
+RestartSec=3
+
+[Install]
+WantedBy=multi-user.target
+```
+
+启动并验证：
+
+```bash
+sudo systemctl daemon-reload
+sudo systemctl enable --now wearchemy
+sudo systemctl status wearchemy --no-pager
+curl http://127.0.0.1:8787/api/health
+```
+
+更新版本：
+
+```bash
+cd /root/Wearchemy
+git pull origin main
+sudo systemctl restart wearchemy
+```
+
+### 3. 共享公网与端口映射
+
+如果服务器网卡只有 `10.x`、`172.16-31.x` 或 `192.168.x` 内网地址，需要在云平台创建入站端口映射：
+
+```text
+协议：TCP
+公网端口：平台自动分配或选择未占用端口
+内网 IP：服务器的内网 IPv4
+内网端口：8787
+```
+
+同时在安全组中放行 TCP `8787`。已有的 SSH 公网端口不要删除或改作网页端口。映射完成后，通过 `http://公网IP:公网端口` 访问。
+
+### 4. Docker 部署
+
+```bash
+docker build -t wearchemy:latest .
+docker volume create wearchemy-data
+
 docker run -d \
-  --name wearchemy-app \
-  -p 8787:8787 \
-  -v /root/wearchemy-data:/app/data \
+  --name wearchemy \
   --restart unless-stopped \
-  wearchemy
-`
+  -p 8787:8787 \
+  -v wearchemy-data:/app/data \
+  wearchemy:latest
+```
 
-### 3. 配置 HTTPS (解锁完整手机体验)
+如果构建阶段下载 `node:22-alpine` 超时，说明服务器无法连接 Docker Hub，并非项目构建失败。可配置可信的 Registry Mirror，或使用上面的 Node.js 直接部署方案。
 
-为了在手机端能正常调起 **AR 摄像头试衣** 并支持 **PWA 离线安装至主屏幕**，必须通过 HTTPS 访问。
+### 5. HTTPS 与 iOS PWA
 
-推荐使用 [Caddy](https://caddyserver.com/) 进行极简反向代理。在服务器上新建一个 Caddyfile：
+正式环境建议绑定域名，并使用 Caddy、Nginx 或 Cloudflare Tunnel 提供 HTTPS。iPhone 安装步骤：
 
-`caddyfile
-# 替换为你的真实域名
-your-domain.com
-reverse_proxy 127.0.0.1:8787
-`
-启动 Caddy 后，它会自动申请并续签 SSL 证书，即可通过安全环境访问完整的穿搭炼金屋 App。
+1. 使用 Safari 打开 HTTPS 地址。
+2. 点击“分享”。
+3. 选择“添加到主屏幕”。
+4. 从主屏幕打开 Wearchemy。
+
+没有域名时，可使用 Cloudflare Quick Tunnel 临时测试：
+
+```bash
+cloudflared tunnel --url http://127.0.0.1:8787
+```
+
+命令会生成一个随机的 `https://*.trycloudflare.com` 地址。Quick Tunnel 仅适合测试：终端关闭或进程重启后地址会失效或改变，不应作为正式生产入口。
