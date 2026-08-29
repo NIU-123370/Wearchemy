@@ -1,0 +1,47 @@
+name: CI
+
+on:
+  push:
+    branches: ["main"]
+  pull_request:
+    branches: ["main"]
+
+permissions:
+  contents: read
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      - name: Check JavaScript syntax
+        run: |
+          node --check app.js
+          node --check server.js
+          node --check sw.js
+
+      - name: Smoke test server
+        run: |
+          node server.js &
+          server_pid=$!
+          trap 'kill "$server_pid"' EXIT
+
+          for attempt in {1..20}; do
+            if curl --fail --silent --show-error http://127.0.0.1:8787/api/health; then
+              exit 0
+            fi
+            sleep 0.25
+          done
+
+          exit 1
+
+      - name: Verify Docker image builds
+        run: docker build --tag wearchemy:ci .
