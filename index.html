@@ -1,0 +1,412 @@
+<!doctype html>
+<html lang="zh">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+  <title>穿搭炼金屋 · 把已有衣橱，温柔地炼成你的风格配方</title>
+  <meta name="description" content="用已有衣物一键炼金合成可循环胶囊搭配，AR 镜像试衣，风格元素周期表越用越懂你。" />
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Noto+Serif+SC:wght@400;500;600;700&family=Noto+Sans+SC:wght@300;400;500;700&family=Cormorant+Garamond:ital,wght@0,500;0,600;1,500&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="styles.css" />
+</head>
+<body>
+  <!-- 柔雾光晕背景 -->
+  <div class="aura aura-1" aria-hidden="true"></div>
+  <div class="aura aura-2" aria-hidden="true"></div>
+  <div class="aura aura-3" aria-hidden="true"></div>
+  <div class="grain" aria-hidden="true"></div>
+
+
+  <div class="app">
+    <!-- 顶部品牌区 -->
+    <header class="brand">
+      <div class="brand-left">
+        <div class="flask" aria-hidden="true">
+          <svg viewBox="0 0 48 48" width="30" height="30">
+            <path d="M19 6h10M21 6v10.5L12.5 33a5 5 0 0 0 4.4 7.5h14.2A5 5 0 0 0 35.5 33L27 16.5V6"
+              fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/>
+            <circle cx="21" cy="28" r="1.6" fill="currentColor"/>
+            <circle cx="26" cy="32" r="1.2" fill="currentColor"/>
+            <circle cx="23" cy="35" r="1" fill="currentColor"/>
+          </svg>
+        </div>
+        <div class="brand-titles">
+          <h1 class="brand-name">穿搭炼金屋</h1>
+          <p class="brand-sub">把已有衣橱，温柔地炼成你的风格配方</p>
+        </div>
+      </div>
+      <div class="brand-right">
+        <span>柔雾珍珠 · 粉晶 · 鼠尾草</span>
+        <span class="brand-right-dim">胶囊搭配 × 实时试衣 × 风格成长</span>
+      </div>
+    </header>
+
+
+    <!-- 主内容 -->
+    <main class="stage">
+
+
+      <!-- 衣橱 -->
+      <section class="view" id="view-closet" data-view="closet">
+        <div class="view-head">
+          <span class="eyebrow">01 / INPUT · ASSET</span>
+          <h2 class="view-title">我的衣橱</h2>
+          <p class="view-desc">把衣服拍下来收进衣橱，挑几件想穿的，就能去搭配出今天的样子。</p>
+        </div>
+
+
+        <div class="closet-tools">
+          <label class="upload-btn" tabindex="0">
+            <input type="file" accept="image/*" id="uploadInput" hidden multiple />
+            <span class="upload-ico" aria-hidden="true">＋</span>
+            <span>拍照 / 上传单品</span>
+          </label>
+          <div class="filters" id="closetFilters" role="tablist" aria-label="单品筛选"></div>
+        </div>
+
+
+        <div class="garment-grid" id="garmentGrid" aria-live="polite"></div>
+
+
+        <div class="selected-bar" id="selectedBar" hidden>
+          <span id="selectedCount">已选 0 件材料</span>
+          <button class="btn-primary" id="toAlchemy">带去炼金台 →</button>
+        </div>
+      </section>
+
+
+      <!-- 炼金 -->
+      <section class="view" id="view-alchemy" data-view="alchemy" hidden>
+        <div class="view-head">
+          <span class="eyebrow">03 / ALCHEMY · RECIPE</span>
+          <h2 class="view-title">帮我搭一套</h2>
+          <p class="view-desc">告诉我今天去哪儿、天气怎么样、心情如何，我就用你衣橱里的衣服搭出合适的样子。</p>
+        </div>
+
+
+        <div class="occasion-block">
+          <div class="field-label">选择场合</div>
+          <div class="chips" id="occasionChips"></div>
+
+
+          <div class="field-label" style="margin-top:18px">正式度</div>
+          <div class="conditions">
+            <label class="cond">
+              <span>正式度</span>
+              <input type="range" id="formalRange" min="0" max="100" value="45" />
+            </label>
+          </div>
+
+
+          <div class="field-label" style="margin-top:18px">天气</div>
+          <div class="chips chips-sm" id="weatherChips"></div>
+
+
+          <div class="field-label" style="margin-top:18px">心情</div>
+          <div class="chips chips-sm" id="moodChips"></div>
+        </div>
+
+
+        <!-- 生成前确认 -->
+        <div class="gen-confirm" id="genConfirm">
+          <div class="gc-head">
+            <span class="field-label" style="margin:0">开炼前确认</span>
+          </div>
+          <div class="gc-summary" id="gcSummary"></div>
+          <div class="gc-modes">
+            <div class="gc-seg" role="group" aria-label="生成范围">
+              <button class="seg-btn" id="scopeToday" data-scope="today" aria-pressed="true">今日一套</button>
+              <button class="seg-btn" id="scopeCapsule" data-scope="capsule" aria-pressed="false">胶囊多套</button>
+            </div>
+            <div class="gc-seg" role="group" aria-label="生成模式">
+              <button class="seg-btn" id="modeFill" data-mode="fill" aria-pressed="true">允许衣橱补充</button>
+              <button class="seg-btn" id="modeOnly" data-mode="only" aria-pressed="false">仅使用所选</button>
+            </div>
+            <label class="gc-keep">
+              <input type="checkbox" id="keepResults" />
+              <span>保留已有配方（换一套时不清空）</span>
+            </label>
+          </div>
+        </div>
+
+
+        <button class="alchemy-btn" id="alchemyBtn">
+          <span class="alchemy-flask" aria-hidden="true">
+            <svg viewBox="0 0 48 48" width="26" height="26">
+              <path d="M19 6h10M21 6v10.5L12.5 33a5 5 0 0 0 4.4 7.5h14.2A5 5 0 0 0 35.5 33L27 16.5V6"
+                fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/>
+            </svg>
+          </span>
+          <span id="alchemyBtnLabel">一键炼金 · 合成配方卡</span>
+        </button>
+
+
+        <div class="alchemy-canvas" id="alchemyCanvas" hidden aria-hidden="true">
+          <div class="orb"></div>
+          <div class="motes" id="motes"></div>
+          <p class="alchemy-status">元素汇聚中…</p>
+        </div>
+
+
+        <div class="recipes" id="recipes" aria-live="polite"></div>
+      </section>
+
+
+      <!-- AR 镜像 -->
+      <section class="view" id="view-mirror" data-view="mirror" hidden>
+        <div class="view-head">
+          <span class="eyebrow">04 / MIRROR</span>
+          <h2 class="view-title">照照镜子</h2>
+          <p class="view-desc">打开摄像头当镜子，把搭好的单品叠在画面上，先看看上身大概是什么感觉。</p>
+        </div>
+
+
+        <div class="mirror-note">
+          <span aria-hidden="true">ⓘ</span>
+          这是「图层叠加式穿搭镜」：单品图层贴在你的画面上供比对，<b>不会</b>改变你身上的真实衣物、也不会随动作自动贴体变形。
+        </div>
+
+
+        <div class="mirror-stage" id="mirrorStage">
+          <video id="mirrorVideo" playsinline autoplay muted></video>
+          <div class="mirror-fallback" id="mirrorFallback">
+          <div class="silhouette" aria-hidden="true">
+            <svg viewBox="0 0 120 200" fill="none">
+              <ellipse cx="60" cy="130" rx="46" ry="62" fill="url(#sgrad)" opacity=".55"/>
+              <path d="M60 18c9 0 16 8 16 18 0 8-4 14-9 17 10 3 19 11 22 22l7 46c1 6-3 11-9 11H33c-6 0-10-5-9-11l7-46c3-11 12-19 22-22-5-3-9-9-9-17 0-10 7-18 16-18Z"
+                stroke="currentColor" stroke-width="1.6" stroke-linejoin="round" opacity=".55"/>
+              <path d="M60 55v42M44 100l-8 34M76 100l8 34" stroke="currentColor" stroke-width="1.2" opacity=".35"/>
+              <defs>
+                <radialGradient id="sgrad" cx="50%" cy="30%" r="70%">
+                  <stop offset="0%" stop-color="#f6dbe6"/>
+                  <stop offset="100%" stop-color="#dce6d6" stop-opacity="0"/>
+                </radialGradient>
+              </defs>
+            </svg>
+          </div>
+          <p>未开启摄像头 · 使用镜像预览位</p>          </div>
+          <div class="layers" id="mirrorLayers"></div>
+          <div class="status-sticker" id="statusSticker" hidden>
+            <span class="ss-phase" id="ssPhase">—</span>
+            <span class="ss-score" id="ssScore">--</span>
+            <button class="ss-close" id="ssClose" aria-label="关闭状态贴纸" type="button">×</button>
+          </div>
+        </div>
+
+
+        <div class="mirror-controls">
+          <button class="btn-ghost" id="startCam">开启摄像头</button>
+          <div class="layer-tray" id="layerTray" aria-label="可试穿的单品图层"></div>
+        </div>
+        <p class="hint" id="mirrorHint">选一套配方，或从下方托盘把单品拖到镜中；拖动移动、双指/滚轮缩放。</p>
+      </section>
+
+
+      <!-- 星轨：身心节律 -->
+      <section class="view" id="view-astro" data-view="astro" hidden>
+        <div class="view-head">
+          <span class="eyebrow">02 / RHYTHM · CYCLE</span>
+          <h2 class="view-title">今天的状态</h2>
+          <p class="view-desc">睡得好不好、身体处在哪个阶段，都会影响你今天想穿什么。记一记，搭配会更懂你。</p>
+        </div>
+
+
+        <!-- ①今日：状态概览 + 进入睡眠 -->
+        <div class="astro-group">
+          <div class="group-head"><span class="group-eyebrow">TODAY · 今日</span></div>
+
+
+          <!-- 今日星象卡（睡眠分 + 阶段 + 起床窗口） -->
+          <div class="astro-card hero-card">
+            <div class="astro-score">
+              <div class="score-ring" id="scoreRing" style="--p:0">
+                <div class="score-ring-inner">
+                  <span id="scoreVal">--</span>
+                  <small>今日睡眠分</small>
+                </div>
+              </div>
+              <div class="astro-phase">
+                <span class="phase-pill" id="phasePill">—</span>
+                <p class="phase-tip" id="phaseTip"></p>
+              </div>
+            </div>
+            <div class="field-label" style="margin-top:16px">智能起床窗口</div>
+            <div class="wake-windows" id="wakeWindows"></div>
+
+
+            <!-- 入睡 / 起床时间（归入今日卡，参与记录今晚提交） -->
+            <div class="checkin-row" style="margin-top:12px">
+              <label class="cs-field"><span>入睡</span><input type="time" id="bedInput" value="23:00" /></label>
+              <label class="cs-field"><span>起床</span><input type="time" id="wakeInput" value="07:00" /></label>
+            </div>
+          </div>
+
+
+          <!-- 睡前倒计时（移入今日分区） -->
+          <div class="astro-block">
+            <div class="field-label">睡前倒计时</div>
+            <div class="ct-row">
+              <label class="cs-field"><span>目标起床时间</span><input type="time" id="wakeGoalInput" value="07:30" /></label>
+              <button class="btn-ghost" type="button" id="calcBedtime">倒推入睡时间</button>
+            </div>
+            <div class="bedtime-result" id="bedtimeResult"></div>
+          </div>
+
+
+          <!-- 滑动入睡组件 -->
+          <div class="sleep-slider-widget" id="sleepSliderWidget">
+            <div class="ss-bg" id="ssBg"></div>
+            <div class="ss-stars" id="ssStars"></div>
+
+
+            <div class="ss-content" id="ssContentUnsleep">
+              <h3 class="ss-title">今晚准备好了吗？</h3>
+              <div class="ss-track" id="ssTrack">
+                <span class="ss-track-text" id="ssTrackText">滑动进入睡眠</span>
+                <div class="ss-thumb" id="ssThumb">
+                  <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h14M12 5l7 7-7 7"/></svg>
+                </div>
+              </div>
+            </div>
+
+
+            <div class="ss-content" id="ssContentSleep" hidden>
+              <h3 class="ss-title">已进入睡眠模式</h3>
+              <p class="ss-time" id="ssSleepTime">入睡时间：--:--</p>
+              <button type="button" class="btn-ghost ss-cancel" id="ssCancelBtn">取消睡眠模式</button>
+            </div>
+          </div>
+        </div>
+
+
+        <!-- ②行动：今晚要做的事 -->
+        <div class="astro-group">
+          <div class="group-head"><span class="group-eyebrow">TONIGHT · 今晚行动</span></div>
+
+
+          <!-- 记录今晚 -->
+          <div class="astro-block">
+            <form class="checkin-form" id="checkinForm">
+              <div class="field-label">记录今晚</div>
+              <div class="field-label" style="margin:12px 0 8px">今天有这些标签吗</div>
+              <div class="chips chips-sm" id="tagChips"></div>
+              <button class="btn-primary" type="submit" style="margin-top:14px;width:100%">记录今晚数据</button>
+            </form>
+          </div>
+        </div>
+
+
+        <!-- ③趋势：回顾与洞察 -->
+        <div class="astro-group">
+          <div class="group-head"><span class="group-eyebrow">TRENDS · 趋势洞察</span></div>
+
+
+          <!-- 睡眠债 -->
+          <div class="astro-block">
+            <div class="field-label">节律槲 · 睡眠债</div>
+            <div class="vessel-row">
+              <div class="vessel" id="debtVessel"><div class="vessel-liquid" id="debtLiquid"></div></div>
+              <div class="vessel-text">
+                <p class="vessel-label" id="debtLabel">—</p>
+                <p class="hint">近 7 日累计，正数为欠觉、负数为已补觉</p>
+              </div>
+            </div>
+          </div>
+
+
+          <!-- 周期星历 -->
+          <div class="astro-block">
+            <div class="field-label">周期星历</div>
+            <div class="cycle-strip" id="cycleStrip"></div>
+            <p class="cycle-predict" id="cyclePredict"></p>
+          </div>
+
+
+          <!-- 星图墙：连续打卡 + 因素分析 -->
+          <div class="astro-block">
+            <div class="field-label">星图墙</div>
+            <div class="streak-row">
+              <div class="streak-num"><span id="streakVal">0</span><small>连续打卡</small></div>
+              <div class="badges" id="badgeRow"></div>
+            </div>
+            <details class="astro-fold" open>
+              <summary><span class="field-label" style="margin:0">因素关联分析</span><span class="fold-caret" aria-hidden="true">⌄</span></summary>
+              <p class="view-desc" style="margin:10px 0 12px">选中越多，越懂你的睡眠。标绿的帮你睡得更好，标红的可能在拖后腿。</p>
+              <div class="factor-list" id="factorList"></div>
+            </details>
+          </div>
+        </div>
+
+
+        <!-- ④设置：周期配置（折叠） -->
+        <div class="astro-group">
+          <div class="group-head"><span class="group-eyebrow">SETTINGS · 周期设置</span></div>
+          <div class="astro-block">
+            <details class="astro-fold">
+              <summary><span class="field-label" style="margin:0">调整我的周期参数</span><span class="fold-caret" aria-hidden="true">⌄</span></summary>
+              <div class="cycle-settings" style="margin-top:14px">
+                <label class="cs-field">
+                  <span>上次经期开始</span>
+                  <input type="date" id="periodStartInput" />
+                </label>
+                <label class="cs-field">
+                  <span>周期天数 <b id="cycleLenVal"></b></span>
+                  <input type="range" id="cycleLenInput" min="21" max="35" />
+                </label>
+                <label class="cs-field">
+                  <span>经期天数 <b id="periodLenVal"></b></span>
+                  <input type="range" id="periodLenInput" min="2" max="8" />
+                </label>
+              </div>
+            </details>
+          </div>
+        </div>
+      </section>
+
+
+      <!-- 风格元素周期表 -->
+      <section class="view" id="view-table" data-view="table" hidden>
+        <div class="view-head">
+          <span class="eyebrow">05 / LEARN</span>
+          <h2 class="view-title">我的风格</h2>
+          <p class="view-desc">你收藏、试穿、真正穿出门的每一套，都在悄悄描绘你的风格。看看它慢慢长成什么样子。</p>
+        </div>
+
+
+        <div class="table-stats" id="tableStats"></div>
+        <div class="periodic" id="periodicTable" aria-label="风格元素周期表"></div>
+      </section>
+
+
+    </main>
+
+
+    <!-- 底部导航 -->
+    <nav class="tabbar" aria-label="主导航">
+      <button class="tab is-active" data-goto="closet">
+        <span class="tab-ico" aria-hidden="true">▦</span><span>衣橱</span>
+      </button>
+      <button class="tab" data-goto="astro">
+        <span class="tab-ico" aria-hidden="true">✧</span><span>星轨</span>
+      </button>
+      <button class="tab" data-goto="alchemy">
+        <span class="tab-ico" aria-hidden="true">⚗</span><span>炼金</span>
+      </button>
+      <button class="tab" data-goto="mirror">
+        <span class="tab-ico" aria-hidden="true">◍</span><span>镜像</span>
+      </button>
+      <button class="tab" data-goto="table">
+        <span class="tab-ico" aria-hidden="true">⁙</span><span>周期表</span>
+      </button>
+    </nav>
+  </div>
+
+
+  <!-- 收藏提示 toast -->
+  <div class="toast" id="toast" role="status" aria-live="polite" hidden></div>
+
+
+  <script src="app.js"></script>
+</body>
+</html>

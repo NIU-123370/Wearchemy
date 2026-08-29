@@ -1,0 +1,5 @@
+.DS_Store
+
+# Cocoa HTML Writer exports kept only as local recovery copies.
+app.html
+style.html
