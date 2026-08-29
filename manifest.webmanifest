@@ -1,0 +1,38 @@
+{
+  "name": "穿搭炼金屋",
+  "short_name": "炼金屋",
+  "description": "把已有衣橱，温柔地炼成你的风格配方。",
+  "id": "/",
+  "start_url": "./index.html",
+  "scope": "./",
+  "display": "standalone",
+  "display_override": ["window-controls-overlay", "standalone"],
+  "orientation": "portrait-primary",
+  "background_color": "#fffcfd",
+  "theme_color": "#fdf3f7",
+  "lang": "zh-CN",
+  "dir": "ltr",
+  "categories": ["lifestyle", "fashion", "utilities"],
+  "icons": [
+    { "src": "icons/icon-192.png", "sizes": "192x192", "type": "image/png", "purpose": "any" },
+    { "src": "icons/icon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "any" },
+    { "src": "icons/icon-maskable-192.png", "sizes": "192x192", "type": "image/png", "purpose": "maskable" },
+    { "src": "icons/icon-maskable-512.png", "sizes": "512x512", "type": "image/png", "purpose": "maskable" }
+  ],
+  "shortcuts": [
+    {
+      "name": "一键炼金",
+      "short_name": "炼金",
+      "description": "直接生成今日穿搭配方",
+      "url": "./index.html#alchemy",
+      "icons": [{ "src": "icons/icon-192.png", "sizes": "192x192" }]
+    },
+    {
+      "name": "照照镜子",
+      "short_name": "镜像",
+      "description": "打开试衣镜",
+      "url": "./index.html#mirror",
+      "icons": [{ "src": "icons/icon-192.png", "sizes": "192x192" }]
+    }
+  ]
+}

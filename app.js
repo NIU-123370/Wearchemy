@@ -227,6 +227,69 @@
   const $ = (s, r = document) => r.querySelector(s);
   const $$ = (s, r = document) => Array.from(r.querySelectorAll(s));
 
+  // ---------- 后端 API（服务器不可用时静默降级为本地内存） ----------
+  const API = {
+    online: true,
+    async req(method, url, body) {
+      try {
+        const r = await fetch(url, {
+          method,
+          headers: body ? { "Content-Type": "application/json" } : undefined,
+          body: body ? JSON.stringify(body) : undefined
+        });
+        const j = await r.json().catch(() => null);
+        this.online = r.ok;
+        return r.ok && j && j.ok ? j.data : null;
+      } catch { this.online = false; return null; }
+    },
+    get(u) { return this.req("GET", u); },
+    post(u, b) { return this.req("POST", u, b); },
+    put(u, b) { return this.req("PUT", u, b); },
+    del(u) { return this.req("DELETE", u); }
+  };
+  const recipeServerId = new Map(); // 本地配方 id → 服务端 id
+
+  let profileSaveTimer = 0;
+  function saveProfile() {
+    clearTimeout(profileSaveTimer);
+    profileSaveTimer = setTimeout(() => {
+      API.put("/api/profile", {
+        periodStart: state.astro.periodStart,
+        cycleLen: state.astro.cycleLen,
+        periodLen: state.astro.periodLen,
+        elementScore: state.elementScore,
+        worn: state.worn,
+        wornDays: state.wornDays
+      });
+    }, 400);
+  }
+
+  async function loadPersisted() {
+    const [garments, checkins, profile, recipes] = await Promise.all([
+      API.get("/api/garments"), API.get("/api/checkins"),
+      API.get("/api/profile"), API.get("/api/recipes")
+    ]);
+    if (!API.online) return; // 纯本地模式，保留演示数据
+    if (Array.isArray(garments)) {
+      garments.forEach(g => { if (!GARMENTS.find(x => x.id === g.id)) GARMENTS.unshift(g); });
+    }
+    if (Array.isArray(checkins) && checkins.length) {
+      state.astro.checkins = checkins;
+    }
+    if (profile) {
+      if (profile.periodStart) state.astro.periodStart = profile.periodStart;
+      if (profile.cycleLen) state.astro.cycleLen = profile.cycleLen;
+      if (profile.periodLen) state.astro.periodLen = profile.periodLen;
+      if (profile.elementScore) Object.assign(state.elementScore, profile.elementScore);
+      if (profile.worn) state.worn = profile.worn;
+      if (profile.wornDays != null) state.wornDays = profile.wornDays;
+    }
+    if (Array.isArray(recipes)) {
+      recipes.forEach(r => { if (r.code) recipeServerId.set(r.code, r.id); });
+    }
+    renderFilters(); renderGrid(); renderAstro(); renderTable(); renderSticker();
+  }
+
   const VIEW_TITLES = {
     closet: "我的衣橱",
     astro: "今天的状态",
@@ -349,7 +412,9 @@
     files.forEach((file, i) => {
       const url = URL.createObjectURL(file);
       const id = "u" + Date.now() + i;
-      GARMENTS.unshift({ id, name: "我的单品", cat: "上装", color: "自定", season: "四季", bg: "linear-gradient(160deg,#f7f1ea,#ecdfd3)", img: url });
+      const item = { id, name: "我的单品", cat: "上装", color: "自定", season: "四季", mood: "neutral", bg: "linear-gradient(160deg,#f7f1ea,#ecdfd3)", img: url };
+      GARMENTS.unshift(item);
+      API.post("/api/garments", { name: item.name, cat: item.cat, color: item.color, season: item.season, mood: item.mood, bg: item.bg });
     });
     state.filter = "全部"; renderFilters(); renderGrid();
     if (files.length) toast(`已录入 ${files.length} 件单品到材料库`);
@@ -649,6 +714,7 @@
   function wearRecipe(r, card) {
     r.mats.forEach(m => { state.worn[m.id] = (state.worn[m.id] || 0) + 1; });
     state.wornDays++;
+    saveProfile();
     const btn = $(".act-worn", card);
     btn.classList.add("is-worn");
     btn.textContent = "已记录 ✓";
@@ -702,8 +768,14 @@
       updateQuickLogOpts();
       bumpElement(r.element.sym, 3);
       toast("配方已入册，风格权重 +3");
+      API.post("/api/recipes", {
+        name: r.name, code: r.code, occasion: r.occasion, weather: r.weather,
+        element: r.element, mats: r.mats.map(m => m.id)
+      }).then(d => { if (d && d.id) recipeServerId.set(r.code, d.id); });
     } else {
       state.saved = state.saved.filter(id => id !== r.id);
+      const sid = recipeServerId.get(r.code);
+      if (sid) { API.del("/api/recipes/" + sid); recipeServerId.delete(r.code); }
     }
   }
 
@@ -896,6 +968,7 @@
   // ---------- 风格元素周期表 ----------
   function bumpElement(sym, n) {
     state.elementScore[sym] = (state.elementScore[sym] || 0) + n;
+    saveProfile();
   }
   function renderTable() {
     const total = Object.values(state.elementScore).reduce((a, b) => a + b, 0);
@@ -1433,6 +1506,7 @@
       
       state.astro.checkins = state.astro.checkins.filter(c => c.date !== date);
       state.astro.checkins.push({ date, bed, wake, tags, score, dur });
+      API.post("/api/checkins", { date, bed, wake, tags, score, dur });
       if ($("#bedInput")) $("#bedInput").value = bed;
       if ($("#wakeInput")) $("#wakeInput").value = wake;
       
@@ -1476,6 +1550,7 @@
   // 周期设置输入监听
   $("#periodStartInput").addEventListener("change", e => {
     state.astro.periodStart = e.target.value || state.astro.periodStart;
+    saveProfile();
     renderAstro(); renderSticker();
   });
   $("#cycleLenInput").addEventListener("input", e => {
@@ -1483,13 +1558,13 @@
     $("#cycleLenVal").textContent = state.astro.cycleLen + " 天";
     renderCycleStrip();
   });
-  $("#cycleLenInput").addEventListener("change", () => { renderAstro(); renderSticker(); });
+  $("#cycleLenInput").addEventListener("change", () => { saveProfile(); renderAstro(); renderSticker(); });
   $("#periodLenInput").addEventListener("input", e => {
     state.astro.periodLen = Number(e.target.value);
     $("#periodLenVal").textContent = state.astro.periodLen + " 天";
     renderCycleStrip();
   });
-  $("#periodLenInput").addEventListener("change", () => { renderAstro(); renderSticker(); });
+  $("#periodLenInput").addEventListener("change", () => { saveProfile(); renderAstro(); renderSticker(); });
 
 
   // 入睡时间变化 → 智能起床窗口随之重算
@@ -1523,6 +1598,7 @@
     const date = todayStr();
     state.astro.checkins = state.astro.checkins.filter(c => c.date !== date);
     state.astro.checkins.push({ date, bed, wake, tags, score, dur });
+    API.post("/api/checkins", { date, bed, wake, tags, score, dur });
     if ($("#quickBedInput")) $("#quickBedInput").value = bed;
     if ($("#quickWakeInput")) $("#quickWakeInput").value = wake;
     $$("#tagChips .chip.is-active").forEach(c => c.classList.remove("is-active"));
@@ -1558,6 +1634,7 @@
   renderSleepSlider();
   renderSticker();
   document.title = `${VIEW_TITLES.closet} — 穿搭炼金屋`;
+  loadPersisted(); // 从后端恢复数据（离线时自动降级本地模式）
 
   // BFCache / 页面恢复也必须与内存状态一致，避免首帧残留夜色。
   window.addEventListener("pageshow", () => {

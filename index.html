@@ -3,15 +3,21 @@
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
-  <meta name="theme-color" content="#fbf4f7" />
+  <meta name="theme-color" content="#fdf3f7" />
   <meta name="apple-mobile-web-app-capable" content="yes" />
+  <meta name="mobile-web-app-capable" content="yes" />
   <meta name="apple-mobile-web-app-status-bar-style" content="default" />
-  <meta name="apple-mobile-web-app-title" content="Wearchemy" />
+  <meta name="apple-mobile-web-app-title" content="炼金屋" />
+  <link rel="manifest" href="manifest.webmanifest" />
+  <link rel="icon" type="image/png" sizes="192x192" href="icons/icon-192.png" />
+  <link rel="apple-touch-icon" href="icons/apple-touch-icon.png" />
   <title>穿搭炼金屋 · 把已有衣橱，温柔地炼成你的风格配方</title>
   <meta name="description" content="用已有衣物一键炼金合成可循环胶囊搭配，AR 镜像试衣，风格元素周期表越用越懂你。" />
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
-  <link href="https://fonts.googleapis.com/css2?family=Noto+Serif+SC:wght@400;500;600;700&family=Noto+Sans+SC:wght@300;400;500;600&family=Cormorant+Garamond:ital,wght@0,500;0,600;1,500&display=swap" rel="stylesheet" />
+  <!-- 字体异步加载：网络受限时不阻塞 app.js 执行与页面渲染 -->
+  <link href="https://fonts.googleapis.com/css2?family=Noto+Serif+SC:wght@400;500;600;700&family=Noto+Sans+SC:wght@300;400;500;600&family=Cormorant+Garamond:ital,wght@0,500;0,600;1,500&display=swap" rel="stylesheet" media="print" onload="this.media='all'" />
+  <noscript><link href="https://fonts.googleapis.com/css2?family=Noto+Serif+SC:wght@400;500;600;700&family=Noto+Sans+SC:wght@300;400;500;600&family=Cormorant+Garamond:ital,wght@0,500;0,600;1,500&display=swap" rel="stylesheet" /></noscript>
   <link rel="stylesheet" href="styles.css" />
   <link rel="stylesheet" href="theme.css" />
 </head>
@@ -225,26 +231,38 @@
 
           <!-- 今日星象卡（睡眠分 + 阶段 + 起床窗口） -->
           <div class="astro-card hero-card">
-            <div class="astro-score">
+            <div class="hero-top-wrap">
               <div class="score-ring" id="scoreRing" style="--p:0">
                 <div class="score-ring-inner">
                   <span id="scoreVal">--</span>
-                  <small>今日睡眠分</small>
+                  <small>睡眠分</small>
                 </div>
               </div>
               <div class="astro-phase">
-                <span class="phase-pill" id="phasePill">—</span>
+                <div class="phase-head"><span class="phase-pill" id="phasePill">—</span></div>
                 <p class="phase-tip" id="phaseTip"></p>
               </div>
             </div>
-            <div class="field-label" style="margin-top:16px">智能起床窗口</div>
-            <div class="wake-windows" id="wakeWindows"></div>
 
+            <div class="hero-divider"></div>
 
-            <!-- 入睡 / 起床时间（归入今日卡，参与记录今晚提交） -->
-            <div class="checkin-row" style="margin-top:12px">
-              <label class="cs-field"><span>入睡</span><input type="time" id="bedInput" value="23:00" /></label>
-              <label class="cs-field"><span>起床</span><input type="time" id="wakeInput" value="07:00" /></label>
+            <div class="hero-time-wrap">
+              <div class="time-inputs">
+                <label class="time-col">
+                  <span class="time-lbl">入睡</span>
+                  <input type="time" id="bedInput" value="23:00" class="time-val" />
+                </label>
+                <span class="time-arrow">→</span>
+                <label class="time-col">
+                  <span class="time-lbl">起床</span>
+                  <input type="time" id="wakeInput" value="07:00" class="time-val" />
+                </label>
+              </div>
+
+              <div class="wake-suggest">
+                <div class="field-label" style="text-align:center; margin-bottom:12px; margin-top:0">智能起床窗口（基于睡眠周期）</div>
+                <div class="wake-windows" id="wakeWindows"></div>
+              </div>
             </div>
           </div>
 
@@ -414,5 +432,21 @@
 
 
   <script src="app.js"></script>
+  <script>
+    // PWA：注册 Service Worker（离线可用 / 可安装到主屏幕）
+    if ("serviceWorker" in navigator) {
+      window.addEventListener("load", () => {
+        navigator.serviceWorker.register("sw.js").catch(() => {});
+      });
+    }
+    // 支持应用快捷方式：index.html#alchemy / #mirror 等直达视图
+    window.addEventListener("load", () => {
+      const view = (location.hash || "").slice(1);
+      if (view) {
+        const tab = document.querySelector(`.tab[data-goto="${view}"]`);
+        if (tab) tab.click();
+      }
+    });
+  </script>
 </body>
 </html>
