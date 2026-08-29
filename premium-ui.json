@@ -1,0 +1,8 @@
+{
+  "ownership": {
+    "Date": "native",
+    "Form": "manual",
+    "Scrollbar": "global-css",
+    "Toast": "shared-dom-region"
+  }
+}

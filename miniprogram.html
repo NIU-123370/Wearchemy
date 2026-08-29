@@ -1,0 +1,284 @@
+<!doctype html>
+<html lang="zh">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>穿搭炼金屋 · 小程序模拟器</title>
+  <style>
+    :root{
+      --ink:#463640; --ink-soft:#857680; --ink-faint:#bcaeb7;
+      --rose:#f0a9c6; --rose-deep:#d16b94;
+      --glass-border:rgba(255,255,255,.9);
+      --sans:-apple-system,BlinkMacSystemFont,"SF Pro Display","PingFang SC","Noto Sans SC","Microsoft YaHei",sans-serif;
+    }
+    *{ box-sizing:border-box; margin:0; padding:0; }
+    html,body{ height:100%; }
+    body{
+      font-family:var(--sans); color:var(--ink); overflow:hidden;
+      display:grid; place-items:center;
+      background:
+        radial-gradient(60% 50% at 85% 10%, rgba(255,196,220,.55), transparent 65%),
+        radial-gradient(50% 45% at 10% 90%, rgba(255,220,233,.6), transparent 68%),
+        linear-gradient(150deg,#fff 0%,#fdf3f7 52%,#f9e8f0 100%);
+      -webkit-font-smoothing:antialiased;
+    }
+    /* 背景光斑 */
+    .blob{ position:fixed; border-radius:50%; filter:blur(80px); pointer-events:none; }
+    .blob-1{ width:44vw; height:44vw; top:-14%; right:-6%; background:rgba(255,183,213,.5); }
+    .blob-2{ width:36vw; height:36vw; bottom:-12%; left:-4%; background:rgba(255,222,233,.7); }
+
+    .scene{ display:flex; flex-direction:column; align-items:center; justify-content:center; gap:18px; width:100%; height:100%; }
+
+    /* ---------- 手机机身（占屏幕 80%，保持手机比例居中） ---------- */
+    .phone{
+      position:relative;
+      width: min(92vw, calc(80vh * 9 / 19.5));
+      height: min(80vh, calc(92vw * 19.5 / 9));
+      border-radius:54px;
+      padding:11px;
+      background:linear-gradient(160deg,#3a2e35,#241b21 60%,#31262d);
+      box-shadow:
+        0 60px 120px -40px rgba(122,52,86,.45),
+        0 24px 48px -24px rgba(122,52,86,.35),
+        inset 0 1px 1px rgba(255,255,255,.25),
+        inset 0 -1px 2px rgba(0,0,0,.5);
+    }
+    .screen{
+      position:relative; width:100%; height:100%;
+      border-radius:44px; overflow:hidden;
+      background:#fffcfd;
+      display:flex; flex-direction:column;
+      box-shadow:inset 0 0 0 1px rgba(0,0,0,.08);
+    }
+
+    /* ---------- 状态栏 ---------- */
+    .statusbar{
+      flex:0 0 auto; height:46px; padding:14px 28px 0;
+      display:flex; justify-content:space-between; align-items:center;
+      font-size:14.5px; font-weight:600; letter-spacing:.01em;
+      background:linear-gradient(180deg, rgba(255,252,253,.92), rgba(255,252,253,.75));
+      position:relative; z-index:6;
+    }
+    .sb-right{ display:flex; align-items:center; gap:6px; color:var(--ink); }
+    .sb-right svg{ height:12px; display:block; }
+
+    /* ---------- 微信导航栏 + 胶囊 ---------- */
+    .wxbar{
+      flex:0 0 auto; height:46px; position:relative; z-index:6;
+      display:grid; place-items:center;
+      background:linear-gradient(180deg, rgba(255,252,253,.92), rgba(255,252,253,.75));
+      border-bottom:1px solid rgba(214,164,186,.12);
+    }
+    .wx-title{ font-size:16px; font-weight:500; letter-spacing:.02em; color:var(--ink); }
+    .capsule{
+      position:absolute; right:12px; top:50%; transform:translateY(-50%);
+      width:88px; height:34px; border-radius:999px;
+      display:flex; align-items:stretch;
+      background:rgba(255,255,255,.55);
+      -webkit-backdrop-filter:blur(14px) saturate(1.5); backdrop-filter:blur(14px) saturate(1.5);
+      border:1px solid rgba(60,45,55,.14);
+      box-shadow:inset 0 1px 0 rgba(255,255,255,.8);
+      overflow:hidden;
+    }
+    .capsule button{
+      flex:1; border:none; background:transparent; cursor:pointer;
+      display:grid; place-items:center; color:#2c2228;
+      transition:background .15s;
+    }
+    .capsule button:active{ background:rgba(209,107,148,.12); }
+    .capsule .divider{ width:1px; margin:7px 0; background:rgba(60,45,55,.14); }
+    .capsule svg{ width:19px; height:19px; }
+
+    /* ---------- 小程序内容 ---------- */
+    .mp-view{ flex:1; min-height:0; position:relative; }
+    .mp-view iframe{ width:100%; height:100%; border:0; display:block; background:#fffcfd; }
+
+    /* 刘海 */
+    .notch{
+      position:absolute; top:11px; left:50%; transform:translateX(-50%);
+      width:118px; height:32px; border-radius:999px; background:#171114; z-index:8;
+      box-shadow:inset 0 1px 2px rgba(255,255,255,.08);
+    }
+    .notch::after{ content:""; position:absolute; right:22px; top:50%; transform:translateY(-50%);
+      width:9px; height:9px; border-radius:50%;
+      background:radial-gradient(circle at 35% 35%, #2e3d52 0 30%, #101418 70%); }
+
+    /* Home 指示条 */
+    .home-indicator{
+      position:absolute; bottom:8px; left:50%; transform:translateX(-50%);
+      width:130px; height:5px; border-radius:999px; background:rgba(46,33,41,.8); z-index:8;
+      pointer-events:none;
+    }
+
+    /* ---------- 胶囊动作面板（模拟） ---------- */
+    .sheet-mask{
+      position:absolute; inset:0; z-index:20; border-radius:44px;
+      background:rgba(46,33,41,.32); opacity:0; pointer-events:none;
+      transition:opacity .22s ease;
+    }
+    .sheet-mask.show{ opacity:1; pointer-events:auto; }
+    .sheet{
+      position:absolute; left:10px; right:10px; bottom:10px; z-index:21;
+      transform:translateY(112%); transition:transform .3s cubic-bezier(.22,.9,.3,1);
+      display:flex; flex-direction:column; gap:8px;
+    }
+    .sheet.show{ transform:translateY(0); }
+    .sheet-group{
+      border-radius:22px; overflow:hidden;
+      background:rgba(255,255,255,.82);
+      -webkit-backdrop-filter:blur(24px) saturate(1.6); backdrop-filter:blur(24px) saturate(1.6);
+      border:1px solid var(--glass-border);
+      box-shadow:0 18px 44px -20px rgba(122,52,86,.4);
+    }
+    .sheet-title{ padding:13px; text-align:center; font-size:12px; color:var(--ink-faint);
+      border-bottom:1px solid rgba(214,164,186,.16); }
+    .sheet-item{
+      display:flex; align-items:center; justify-content:center; gap:8px;
+      padding:14px; font-size:15px; color:var(--ink); cursor:pointer;
+      border-bottom:1px solid rgba(214,164,186,.16); transition:background .15s;
+    }
+    .sheet-item:last-child{ border-bottom:none; }
+    .sheet-item:active{ background:rgba(240,169,198,.16); }
+    .sheet-cancel{ text-align:center; padding:14px; font-size:15px; font-weight:500; color:var(--rose-deep);
+      border-radius:22px; cursor:pointer;
+      background:rgba(255,255,255,.9); border:1px solid var(--glass-border); }
+    .sheet-cancel:active{ background:rgba(240,169,198,.2); }
+
+    /* 模拟器内的 toast */
+    .sim-toast{
+      position:absolute; left:50%; bottom:120px; transform:translate(-50%,8px);
+      z-index:22; padding:10px 18px; border-radius:999px;
+      background:rgba(72,51,62,.82); color:#fff; font-size:12.5px; letter-spacing:.02em;
+      opacity:0; pointer-events:none; transition:opacity .2s, transform .2s;
+      -webkit-backdrop-filter:blur(12px); backdrop-filter:blur(12px);
+    }
+    .sim-toast.show{ opacity:1; transform:translate(-50%,0); }
+
+    /* ---------- 场景说明 ---------- */
+    .scene-caption{
+      font-size:12.5px; color:var(--ink-soft); letter-spacing:.03em;
+      display:flex; align-items:center; gap:10px;
+    }
+    .scene-caption b{ color:var(--rose-deep); font-weight:500; }
+    .scene-caption .dot{ width:4px; height:4px; border-radius:50%; background:var(--ink-faint); }
+
+    /* 窄屏/矮屏：整机等比缩放 */
+    .scaler{ transform-origin:center center; }
+  </style>
+</head>
+<body>
+  <div class="blob blob-1"></div>
+  <div class="blob blob-2"></div>
+
+  <div class="scene">
+    <div class="scaler" id="scaler">
+      <div class="phone">
+        <div class="screen">
+          <!-- 状态栏 -->
+          <div class="statusbar">
+            <span id="clock">9:41</span>
+            <span class="sb-right">
+              <!-- 信号 -->
+              <svg viewBox="0 0 18 12" width="17" fill="currentColor"><rect x="0" y="7" width="3" height="5" rx="1"/><rect x="4.5" y="5" width="3" height="7" rx="1"/><rect x="9" y="2.5" width="3" height="9.5" rx="1"/><rect x="13.5" y="0" width="3" height="12" rx="1"/></svg>
+              <!-- WiFi -->
+              <svg viewBox="0 0 16 12" width="16" fill="currentColor"><path d="M8 9.6a1.4 1.4 0 1 1 0 2.8 1.4 1.4 0 0 1 0-2.8ZM8 5.4c1.8 0 3.4.7 4.6 1.9l-1.5 1.5A4.4 4.4 0 0 0 8 7.4c-1.2 0-2.3.5-3.1 1.4L3.4 7.3A6.4 6.4 0 0 1 8 5.4ZM8 1c2.9 0 5.6 1.2 7.6 3.1l-1.5 1.5A8.3 8.3 0 0 0 8 3a8.3 8.3 0 0 0-6.1 2.6L.4 4.1A11 11 0 0 1 8 1Z" transform="translate(0,-1)"/></svg>
+              <!-- 电池 -->
+              <svg viewBox="0 0 25 12" width="25"><rect x="0.5" y="0.5" width="21" height="11" rx="3.2" fill="none" stroke="currentColor" opacity=".45"/><rect x="2.2" y="2.2" width="15.5" height="7.6" rx="1.8" fill="currentColor"/><path d="M23.2 4v4a2.1 2.1 0 0 0 0-4Z" fill="currentColor" opacity=".45"/></svg>
+            </span>
+          </div>
+
+          <!-- 微信导航栏 -->
+          <div class="wxbar">
+            <span class="wx-title">穿搭炼金屋</span>
+            <div class="capsule">
+              <button id="capMore" aria-label="更多">
+                <svg viewBox="0 0 24 24" fill="currentColor"><circle cx="5" cy="12" r="2.1"/><circle cx="12" cy="12" r="2.1"/><circle cx="19" cy="12" r="2.1"/></svg>
+              </button>
+              <span class="divider"></span>
+              <button id="capClose" aria-label="关闭">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9"><circle cx="12" cy="12" r="7.4"/><circle cx="12" cy="12" r="2.6" fill="currentColor" stroke="none"/></svg>
+              </button>
+            </div>
+          </div>
+
+          <!-- 小程序主体 -->
+          <div class="mp-view">
+            <iframe src="index.html" title="穿搭炼金屋小程序"></iframe>
+          </div>
+
+          <div class="notch"></div>
+          <div class="home-indicator"></div>
+
+          <!-- 动作面板 -->
+          <div class="sheet-mask" id="sheetMask"></div>
+          <div class="sheet" id="sheet">
+            <div class="sheet-group">
+              <div class="sheet-title">穿搭炼金屋 · 模拟小程序</div>
+              <div class="sheet-item" data-act="share">转发给好友（模拟）</div>
+              <div class="sheet-item" data-act="fav">添加到我的小程序（模拟）</div>
+              <div class="sheet-item" data-act="about">关于穿搭炼金屋</div>
+            </div>
+            <div class="sheet-cancel" id="sheetCancel">取消</div>
+          </div>
+
+          <div class="sim-toast" id="simToast"></div>
+        </div>
+      </div>
+    </div>
+
+    <div class="scene-caption">
+      <b>穿搭炼金屋</b><span class="dot"></span><span>微信小程序 · 模拟运行</span><span class="dot"></span><span>右上角胶囊可交互</span>
+    </div>
+  </div>
+
+  <script>
+    // 实时时钟
+    function tick(){
+      const d = new Date();
+      document.getElementById("clock").textContent =
+        d.getHours() + ":" + String(d.getMinutes()).padStart(2, "0");
+    }
+    tick(); setInterval(tick, 15000);
+
+    // 80% 尺寸由 CSS 按比例控制，无需 JS 缩放
+
+    // 胶囊：更多面板
+    const mask = document.getElementById("sheetMask");
+    const sheet = document.getElementById("sheet");
+    const toastEl = document.getElementById("simToast");
+    let toastT;
+    function simToast(msg){
+      toastEl.textContent = msg;
+      toastEl.classList.add("show");
+      clearTimeout(toastT);
+      toastT = setTimeout(() => toastEl.classList.remove("show"), 2000);
+    }
+    function openSheet(){ mask.classList.add("show"); sheet.classList.add("show"); }
+    function closeSheet(){ mask.classList.remove("show"); sheet.classList.remove("show"); }
+    document.getElementById("capMore").addEventListener("click", openSheet);
+    mask.addEventListener("click", closeSheet);
+    document.getElementById("sheetCancel").addEventListener("click", closeSheet);
+    sheet.querySelectorAll(".sheet-item").forEach(it => it.addEventListener("click", () => {
+      closeSheet();
+      const act = it.dataset.act;
+      if (act === "share") simToast("已生成转发卡片（模拟）");
+      else if (act === "fav") simToast("已添加到我的小程序（模拟）");
+      else simToast("穿搭炼金屋 v1.0 · 把衣橱炼成风格配方");
+    }));
+
+    // 胶囊：关闭（模拟退出）
+    document.getElementById("capClose").addEventListener("click", () => {
+      const frame = document.querySelector(".mp-view iframe");
+      frame.style.transition = "opacity .3s ease, transform .3s ease";
+      frame.style.opacity = "0";
+      frame.style.transform = "scale(.92)";
+      simToast("已退出小程序（模拟），1.5 秒后重新进入");
+      setTimeout(() => {
+        frame.style.opacity = "";
+        frame.style.transform = "";
+        frame.contentWindow.location.reload();
+      }, 1500);
+    });
+  </script>
+</body>
+</html>

@@ -216,7 +216,9 @@
       checkins: [],       // { date, bed, wake, tags: [], score, dur }
       stickerHidden: false,
       wakePick: null,     // 用户选中的起床时间
-      wakeCustom: ""      // 自定义起床时间
+      wakeCustom: "",     // 自定义起床时间
+      isSleeping: false,
+      sleepStartTime: null
     }
   };
   ELEMENTS.forEach(e => state.elementScore[e.sym] = 0);
@@ -225,19 +227,126 @@
   const $ = (s, r = document) => r.querySelector(s);
   const $$ = (s, r = document) => Array.from(r.querySelectorAll(s));
 
+  // ---------- 后端 API（服务器不可用时静默降级为本地内存） ----------
+  const API = {
+    online: true,
+    async req(method, url, body) {
+      try {
+        const r = await fetch(url, {
+          method,
+          headers: body ? { "Content-Type": "application/json" } : undefined,
+          body: body ? JSON.stringify(body) : undefined
+        });
+        const j = await r.json().catch(() => null);
+        this.online = r.ok;
+        return r.ok && j && j.ok ? j.data : null;
+      } catch { this.online = false; return null; }
+    },
+    get(u) { return this.req("GET", u); },
+    post(u, b) { return this.req("POST", u, b); },
+    put(u, b) { return this.req("PUT", u, b); },
+    del(u) { return this.req("DELETE", u); }
+  };
+  const recipeServerId = new Map(); // 本地配方 id → 服务端 id
+
+  let profileSaveTimer = 0;
+  function saveProfile() {
+    clearTimeout(profileSaveTimer);
+    profileSaveTimer = setTimeout(() => {
+      API.put("/api/profile", {
+        periodStart: state.astro.periodStart,
+        cycleLen: state.astro.cycleLen,
+        periodLen: state.astro.periodLen,
+        elementScore: state.elementScore,
+        worn: state.worn,
+        wornDays: state.wornDays
+      });
+    }, 400);
+  }
+
+  async function loadPersisted() {
+    const [garments, checkins, profile, recipes] = await Promise.all([
+      API.get("/api/garments"), API.get("/api/checkins"),
+      API.get("/api/profile"), API.get("/api/recipes")
+    ]);
+    if (!API.online) return; // 纯本地模式，保留演示数据
+    if (Array.isArray(garments)) {
+      garments.forEach(g => { if (!GARMENTS.find(x => x.id === g.id)) GARMENTS.unshift(g); });
+    }
+    if (Array.isArray(checkins) && checkins.length) {
+      state.astro.checkins = checkins;
+    }
+    if (profile) {
+      if (profile.periodStart) state.astro.periodStart = profile.periodStart;
+      if (profile.cycleLen) state.astro.cycleLen = profile.cycleLen;
+      if (profile.periodLen) state.astro.periodLen = profile.periodLen;
+      if (profile.elementScore) Object.assign(state.elementScore, profile.elementScore);
+      if (profile.worn) state.worn = profile.worn;
+      if (profile.wornDays != null) state.wornDays = profile.wornDays;
+    }
+    if (Array.isArray(recipes)) {
+      recipes.forEach(r => { if (r.code) recipeServerId.set(r.code, r.id); });
+    }
+    renderFilters(); renderGrid(); renderAstro(); renderTable(); renderSticker();
+  }
+
+  const VIEW_TITLES = {
+    closet: "我的衣橱",
+    astro: "今天的状态",
+    alchemy: "帮我搭一套",
+    mirror: "照照镜子",
+    table: "我的风格"
+  };
+  const reduceMotion = () => window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+  let navigationTimer = 0;
+  let navigationCleanupTimer = 0;
+  let navigationSequence = 0;
+
 
   // ---------- 导航 ----------
   function goto(view) {
+    const target = $(`.view[data-view="${view}"]`);
+    const current = $(".view:not([hidden])");
+    if (!target || target === current) return;
+
     state.view = view;
-    $$(".view").forEach(v => v.hidden = v.dataset.view !== view);
-    $$(".tab").forEach(t => t.classList.toggle("is-active", t.dataset.goto === view));
+    $$(".tab").forEach(t => {
+      const active = t.dataset.goto === view;
+      t.classList.toggle("is-active", active);
+      if (active) t.setAttribute("aria-current", "page");
+      else t.removeAttribute("aria-current");
+    });
     if (view === "table") renderTable();
     if (view === "mirror") { renderTray(); renderSticker(); }
     if (view === "astro") renderAstro();
     if (view === "alchemy") renderGenConfirm();
+    document.title = `${VIEW_TITLES[view]} — 穿搭炼金屋`;
     // 睡眠模式始终跟随真实状态，避免切页面时残留
     document.body.classList.toggle("sleep-mode", !!state.astro.isSleeping);
-    window.scrollTo({ top: 0, behavior: "smooth" });
+
+    const sequence = ++navigationSequence;
+    clearTimeout(navigationTimer);
+    clearTimeout(navigationCleanupTimer);
+    const swap = () => {
+      if (sequence !== navigationSequence) return;
+      $$(".view").forEach(v => {
+        v.hidden = v !== target;
+        v.classList.remove("is-leaving", "is-entering");
+      });
+      target.classList.add("is-entering");
+      window.scrollTo({ top: 0, behavior: "auto" });
+      navigationCleanupTimer = window.setTimeout(
+        () => target.classList.remove("is-entering"),
+        reduceMotion() ? 0 : 280
+      );
+    };
+
+    if (reduceMotion()) swap();
+    else {
+      current.classList.remove("is-entering");
+      current.classList.add("is-leaving");
+      navigationTimer = window.setTimeout(swap, 120);
+    }
   }
   $$(".tab").forEach(t => t.addEventListener("click", () => goto(t.dataset.goto)));
 
@@ -250,7 +359,7 @@
 
   function renderFilters() {
     filtersEl.innerHTML = cats.map(c =>
-      `<button class="filter${c === state.filter ? " is-active" : ""}" data-cat="${c}" role="tab">${c}</button>`
+      `<button class="filter${c === state.filter ? " is-active" : ""}" data-cat="${c}" aria-pressed="${c === state.filter}">${c}</button>`
     ).join("");
     $$(".filter", filtersEl).forEach(f => f.addEventListener("click", () => {
       state.filter = f.dataset.cat; renderFilters(); renderGrid();
@@ -260,28 +369,31 @@
 
   function renderGrid() {
     const list = GARMENTS.filter(g => state.filter === "全部" || g.cat === state.filter);
-    grid.innerHTML = list.map(g => {
+    grid.innerHTML = list.map((g, index) => {
       const thumb = g.img
         ? `<img src="${g.img}" alt="${g.name}" style="width:100%;height:100%;object-fit:cover;border-radius:12px"/>`
         : icon(g.icon, g.tint);
       return `
-      <div class="garment${state.selected.has(g.id) ? " is-selected" : ""}" data-id="${g.id}" role="button" tabindex="0" aria-pressed="${state.selected.has(g.id)}">
+      <button type="button" class="garment${state.selected.has(g.id) ? " is-selected" : ""}" data-id="${g.id}" aria-pressed="${state.selected.has(g.id)}" style="--item-index:${index}">
         <div class="garment-thumb" style="background:${g.bg}">${thumb}</div>
         <div class="garment-name">${g.name}</div>
         <div class="check" aria-hidden="true">✓</div>
-      </div>`;
+      </button>`;
     }).join("");
     $$(".garment", grid).forEach(el => {
-      const toggle = () => toggleSelect(el.dataset.id);
-      el.addEventListener("click", toggle);
-      el.addEventListener("keydown", e => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); toggle(); } });
+      el.addEventListener("click", () => toggleSelect(el.dataset.id, el));
     });
   }
 
 
-  function toggleSelect(id) {
+  function toggleSelect(id, element) {
     if (state.selected.has(id)) state.selected.delete(id); else state.selected.add(id);
-    renderGrid(); updateSelectedBar();
+    if (element) {
+      const selected = state.selected.has(id);
+      element.classList.toggle("is-selected", selected);
+      element.setAttribute("aria-pressed", String(selected));
+    } else renderGrid();
+    updateSelectedBar();
   }
 
 
@@ -300,11 +412,19 @@
     files.forEach((file, i) => {
       const url = URL.createObjectURL(file);
       const id = "u" + Date.now() + i;
-      GARMENTS.unshift({ id, name: "我的单品", cat: "上装", color: "自定", season: "四季", bg: "linear-gradient(160deg,#f7f1ea,#ecdfd3)", img: url });
+      const item = { id, name: "我的单品", cat: "上装", color: "自定", season: "四季", mood: "neutral", bg: "linear-gradient(160deg,#f7f1ea,#ecdfd3)", img: url };
+      GARMENTS.unshift(item);
+      API.post("/api/garments", { name: item.name, cat: item.cat, color: item.color, season: item.season, mood: item.mood, bg: item.bg });
     });
     state.filter = "全部"; renderFilters(); renderGrid();
     if (files.length) toast(`已录入 ${files.length} 件单品到材料库`);
     e.target.value = "";
+  });
+  $(".upload-btn").addEventListener("keydown", e => {
+    if (e.key === "Enter" || e.key === " ") {
+      e.preventDefault();
+      $("#uploadInput").click();
+    }
   });
 
 
@@ -448,14 +568,17 @@
     if (state.genMode === "only") {
       if (state.selected.size === 0) { toast("请先在衣橱里选几件单品"); return; }
       const short = neededCats(GARMENTS.filter(g => state.selected.has(g.id)));
-      if (short.length) { toast("仅用所选还缺：" + short.join("、") + "，可切换为「允许补充」"); }
+      if (short.length) { toast("仅用所选还缺：" + short.join("、") + "，可切换为「允许补充」"); return; }
     }
 
 
     btn.classList.add("is-busy");
+    btn.disabled = true;
+    btn.setAttribute("aria-busy", "true");
     $("#alchemyBtnLabel").textContent = "炼金中…";
     const canvas = $("#alchemyCanvas");
     canvas.hidden = false;
+    canvas.setAttribute("aria-hidden", "false");
     spawnMotes();
 
 
@@ -463,7 +586,10 @@
     clearTimeout(alchemize._t);
     alchemize._t = setTimeout(() => {
       canvas.hidden = true;
+      canvas.setAttribute("aria-hidden", "true");
       btn.classList.remove("is-busy");
+      btn.disabled = false;
+      btn.removeAttribute("aria-busy");
       // 按范围决定套数：今日一套 / 胶囊多套
       const count = state.genScope === "capsule" ? (3 + (Math.random() < .5 ? 0 : 1)) : 1;
       const variants = buildVariants(count);
@@ -550,7 +676,7 @@
             const isAdded = r.addedIds && r.addedIds.has(m.id);
             const isLocked = state.locked.has(m.id);
             const thumb = m.img ? `<img src="${m.img}" alt="${m.name}" style="width:100%;height:100%;object-fit:cover;border-radius:11px"/>` : icon(m.icon, m.tint);
-            return `<div class="recipe-mat${isAdded ? " is-added" : " is-chosen"}${isLocked ? " is-locked" : ""}" data-mat="${m.id}" role="button" tabindex="0" style="background:${m.bg}" title="${m.name} · 点击${isLocked ? "解锁" : "锁定"}">${thumb}<span class="mat-badge" aria-hidden="true">${isLocked ? "🔒" : isAdded ? "+" : "✓"}</span></div>`;
+            return `<button type="button" class="recipe-mat${isAdded ? " is-added" : " is-chosen"}${isLocked ? " is-locked" : ""}" data-mat="${m.id}" style="background:${m.bg}" aria-label="${m.name}，${isLocked ? "解锁" : "锁定"}">${thumb}<span class="mat-badge" aria-hidden="true">${isLocked ? "🔒" : isAdded ? "+" : "✓"}</span></button>`;
           }).join("")}
         </div>
         <p class="recipe-meta">${r.mats.length} 件 · 你选 ${r.chosenCount} 件${r.mats.length - r.chosenCount > 0 ? " · 衣橱补充 " + (r.mats.length - r.chosenCount) + " 件" : ""} · 复用率 ${r.reuse}%</p>
@@ -570,9 +696,7 @@
       $(".act-try", card).addEventListener("click", () => tryRecipe(r));
       $(".act-worn", card).addEventListener("click", () => wearRecipe(r, card));
       $$(".recipe-mat", card).forEach(el => {
-        const toggle = () => toggleLock(el.dataset.mat, r);
-        el.addEventListener("click", toggle);
-        el.addEventListener("keydown", e => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); toggle(); } });
+        el.addEventListener("click", () => toggleLock(el.dataset.mat, r));
       });
     });
   }
@@ -590,6 +714,7 @@
   function wearRecipe(r, card) {
     r.mats.forEach(m => { state.worn[m.id] = (state.worn[m.id] || 0) + 1; });
     state.wornDays++;
+    saveProfile();
     const btn = $(".act-worn", card);
     btn.classList.add("is-worn");
     btn.textContent = "已记录 ✓";
@@ -643,8 +768,14 @@
       updateQuickLogOpts();
       bumpElement(r.element.sym, 3);
       toast("配方已入册，风格权重 +3");
+      API.post("/api/recipes", {
+        name: r.name, code: r.code, occasion: r.occasion, weather: r.weather,
+        element: r.element, mats: r.mats.map(m => m.id)
+      }).then(d => { if (d && d.id) recipeServerId.set(r.code, d.id); });
     } else {
       state.saved = state.saved.filter(id => id !== r.id);
+      const sid = recipeServerId.get(r.code);
+      if (sid) { API.del("/api/recipes/" + sid); recipeServerId.delete(r.code); }
     }
   }
 
@@ -715,18 +846,18 @@
   function addLayer(id) {
     const g = GARMENTS.find(x => x.id === id);
     if (!g) return;
-    state.tryOn.push({ key: id + "_" + Date.now(), icon: g.icon, tint: g.tint, img: g.img, bg: g.bg, x: 50, y: 40, scale: 1 });
+    state.tryOn.push({ key: id + "_" + Date.now(), name: g.name, icon: g.icon, tint: g.tint, img: g.img, bg: g.bg, x: 50, y: 40, scale: 1 });
     renderLayers();
   }
 
 
   function renderLayers() {
     layersEl.innerHTML = state.tryOn.map(l => `
-      <div class="layer" data-key="${l.key}" style="left:${l.x}%;top:${l.y}%;transform:translate(-50%,-50%) scale(${l.scale})">
+      <div class="layer" data-key="${l.key}" tabindex="0" role="group" aria-label="${l.name || "试穿单品"}图层，方向键移动，加减键缩放" style="left:${l.x}%;top:${l.y}%;transform:translate(-50%,-50%) scale(${l.scale})">
         <div class="layer-card" style="background:${l.bg || 'var(--card-solid)'}">
           ${l.img ? `<img src="${l.img}" alt="" style="width:100%;height:100%;object-fit:cover;border-radius:14px"/>` : icon(l.icon, l.tint)}
         </div>
-        <span class="rm" role="button" aria-label="移除">×</span>
+        <button type="button" class="rm" aria-label="移除${l.name || "试穿单品"}">×</button>
       </div>`).join("");
     $$(".layer", layersEl).forEach(el => {
       const l = state.tryOn.find(x => x.key === el.dataset.key);
@@ -735,6 +866,20 @@
         state.tryOn = state.tryOn.filter(x => x.key !== l.key); renderLayers();
       });
       enableDrag(el, l);
+      el.addEventListener("keydown", ev => {
+        const step = ev.shiftKey ? 5 : 2;
+        if (ev.key === "ArrowLeft") l.x = Math.max(0, l.x - step);
+        else if (ev.key === "ArrowRight") l.x = Math.min(100, l.x + step);
+        else if (ev.key === "ArrowUp") l.y = Math.max(0, l.y - step);
+        else if (ev.key === "ArrowDown") l.y = Math.min(100, l.y + step);
+        else if (ev.key === "+" || ev.key === "=") l.scale = Math.min(3, l.scale + .1);
+        else if (ev.key === "-" || ev.key === "_") l.scale = Math.max(.4, l.scale - .1);
+        else return;
+        ev.preventDefault();
+        el.style.left = l.x + "%";
+        el.style.top = l.y + "%";
+        el.style.transform = `translate(-50%,-50%) scale(${l.scale})`;
+      });
       el.addEventListener("wheel", ev => {
         ev.preventDefault();
         l.scale = Math.min(3, Math.max(.4, l.scale - Math.sign(ev.deltaY) * .1));
@@ -823,6 +968,7 @@
   // ---------- 风格元素周期表 ----------
   function bumpElement(sym, n) {
     state.elementScore[sym] = (state.elementScore[sym] || 0) + n;
+    saveProfile();
   }
   function renderTable() {
     const total = Object.values(state.elementScore).reduce((a, b) => a + b, 0);
@@ -847,11 +993,18 @@
 
   // ---------- toast ----------
   let toastTimer;
+  let toastCleanupTimer;
   function toast(msg) {
     const t = $("#toast");
-    t.textContent = msg; t.hidden = false;
+    t.textContent = msg;
+    t.hidden = false;
     clearTimeout(toastTimer);
-    toastTimer = setTimeout(() => t.hidden = true, 2200);
+    clearTimeout(toastCleanupTimer);
+    requestAnimationFrame(() => t.classList.add("is-visible"));
+    toastTimer = setTimeout(() => {
+      t.classList.remove("is-visible");
+      toastCleanupTimer = setTimeout(() => { t.hidden = true; }, reduceMotion() ? 0 : 180);
+    }, 2600);
   }
 
 
@@ -921,10 +1074,10 @@
     const windows = computeWakeWindows(bedRef);
     const selected = state.astro.wakePick;
     let html = windows.map(w => `
-      <div class="wake-window${w.best ? " is-best" : ""}${selected === w.time ? " is-picked" : ""}" data-time="${w.time}" role="button" tabindex="0">
+      <button type="button" class="wake-window${w.best ? " is-best" : ""}${selected === w.time ? " is-picked" : ""}" data-time="${w.time}">
         <div class="ww-time">${w.time}</div>
         <div class="ww-lbl">${w.cycles} 个周期 · ${w.hrs}h</div>
-      </div>`).join("");
+      </button>`).join("");
     // 自定义起床时间项
     const customVal = state.astro.wakeCustom || "";
     const isCustomPicked = customVal && selected === customVal;
@@ -938,9 +1091,7 @@
 
     // 点击预设窗口 → 设为起床时间
     el.querySelectorAll(".wake-window[data-time]").forEach(node => {
-      const pick = () => setWakePick(node.dataset.time);
-      node.addEventListener("click", pick);
-      node.addEventListener("keydown", e => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); pick(); } });
+      node.addEventListener("click", () => setWakePick(node.dataset.time));
     });
     // 自定义输入 → 设为起床时间
     const ci = $("#wakeCustomInput");
@@ -1045,9 +1196,10 @@
   function renderSleepSlider() {
     const el = $("#sleepSliderWidget");
     if (!el) return;
-    const isSleeping = state.astro.isSleeping;
+    const isSleeping = !!state.astro.isSleeping;
     el.classList.toggle("is-sleeping", isSleeping);
     document.body.classList.toggle("sleep-mode", isSleeping);
+    document.body.dataset.appearance = isSleeping ? "sleep" : "light";
     
     if (isSleeping) {
       $("#ssContentUnsleep").hidden = true;
@@ -1116,6 +1268,7 @@
 
     function onStart(e) {
       if (state.astro.isSleeping) return;
+      document.body.dataset.appearance = "transition";
       isDragging = true;
       thumb.style.transition = "none";
       // 从滑块实际位置读取，避免取消后位置残留
@@ -1155,8 +1308,25 @@
         // 未完成，回弹并让页面颜色一起退回
         updatePos(0);
         document.body.style.setProperty("--page-night", 0);
+        document.body.dataset.appearance = "light";
       }
     }
+
+    thumb.addEventListener("keydown", e => {
+      if (e.key !== "Enter" && e.key !== " ") return;
+      e.preventDefault();
+      maxX = Math.max(1, track.offsetWidth - thumb.offsetWidth - 8);
+      currentX = maxX;
+      updatePos(maxX);
+      if (!state.astro.isSleeping) {
+        const now = new Date();
+        document.body.dataset.appearance = "transition";
+        state.astro.isSleeping = true;
+        state.astro.sleepStartTime = fmtHM(now.getHours() * 60 + now.getMinutes());
+        document.body.style.removeProperty("--page-night");
+        renderSleepSlider();
+      }
+    });
 
 
     thumb.addEventListener("mousedown", onStart);
@@ -1336,6 +1506,7 @@
       
       state.astro.checkins = state.astro.checkins.filter(c => c.date !== date);
       state.astro.checkins.push({ date, bed, wake, tags, score, dur });
+      API.post("/api/checkins", { date, bed, wake, tags, score, dur });
       if ($("#bedInput")) $("#bedInput").value = bed;
       if ($("#wakeInput")) $("#wakeInput").value = wake;
       
@@ -1379,6 +1550,7 @@
   // 周期设置输入监听
   $("#periodStartInput").addEventListener("change", e => {
     state.astro.periodStart = e.target.value || state.astro.periodStart;
+    saveProfile();
     renderAstro(); renderSticker();
   });
   $("#cycleLenInput").addEventListener("input", e => {
@@ -1386,13 +1558,13 @@
     $("#cycleLenVal").textContent = state.astro.cycleLen + " 天";
     renderCycleStrip();
   });
-  $("#cycleLenInput").addEventListener("change", () => { renderAstro(); renderSticker(); });
+  $("#cycleLenInput").addEventListener("change", () => { saveProfile(); renderAstro(); renderSticker(); });
   $("#periodLenInput").addEventListener("input", e => {
     state.astro.periodLen = Number(e.target.value);
     $("#periodLenVal").textContent = state.astro.periodLen + " 天";
     renderCycleStrip();
   });
-  $("#periodLenInput").addEventListener("change", () => { renderAstro(); renderSticker(); });
+  $("#periodLenInput").addEventListener("change", () => { saveProfile(); renderAstro(); renderSticker(); });
 
 
   // 入睡时间变化 → 智能起床窗口随之重算
@@ -1426,6 +1598,7 @@
     const date = todayStr();
     state.astro.checkins = state.astro.checkins.filter(c => c.date !== date);
     state.astro.checkins.push({ date, bed, wake, tags, score, dur });
+    API.post("/api/checkins", { date, bed, wake, tags, score, dur });
     if ($("#quickBedInput")) $("#quickBedInput").value = bed;
     if ($("#quickWakeInput")) $("#quickWakeInput").value = wake;
     $$("#tagChips .chip.is-active").forEach(c => c.classList.remove("is-active"));
@@ -1460,5 +1633,14 @@
   renderTagChips();
   renderSleepSlider();
   renderSticker();
-  goto("closet");
+  document.title = `${VIEW_TITLES.closet} — 穿搭炼金屋`;
+  loadPersisted(); // 从后端恢复数据（离线时自动降级本地模式）
+
+  // BFCache / 页面恢复也必须与内存状态一致，避免首帧残留夜色。
+  window.addEventListener("pageshow", () => {
+    if (state.astro.isSleeping) return;
+    document.body.classList.remove("sleep-mode");
+    document.body.dataset.appearance = "light";
+    document.body.style.setProperty("--page-night", 0);
+  });
 })();
