@@ -6,6 +6,12 @@ Wearchemy 由 Wear（穿着）与 Alchemy（炼金术）融合而来，寓意将
 
 每一次挑选、试穿、收藏与真正穿出门的搭配，都会成为理解你的线索，让零散的衣物逐渐形成清晰而独特的个人风格。我们相信，真正动人的风格并非来自拥有更多，而是更懂得珍惜、组合与表达。
 
+## 在线访问
+
+* **iOS 客户端（PWA）**：[https://fundamentals-tunnel-gender-raymond.trycloudflare.com](https://fundamentals-tunnel-gender-raymond.trycloudflare.com)
+* **网页版**：[http://111.62.156.213:10350](http://111.62.156.213:10350)
+* **网页版备用线路**：[http://218.11.5.249:10353](http://218.11.5.249:10353)
+
 ## 🎯 核心功能
 
 *   **👗 衣橱管理**：拍照或上传已有单品，归类收纳，轻松掌握已有资产。
