@@ -1,5 +1,5 @@
 /* 穿搭炼金屋 · Service Worker —— 离线可用的本地资源缓存 */
-const VERSION = "wearchemy-v7";
+const VERSION = "wearchemy-v9";
 const SHELL = [
   "./",
   "./index.html",
@@ -17,7 +17,9 @@ const SHELL = [
 
 self.addEventListener("install", (event) => {
   event.waitUntil(
-    caches.open(VERSION).then((cache) => cache.addAll(SHELL)).then(() => self.skipWaiting())
+    caches.open(VERSION)
+      .then((cache) => cache.addAll(SHELL.map((url) => new Request(url, { cache: "reload" }))))
+      .then(() => self.skipWaiting())
   );
 });
 
