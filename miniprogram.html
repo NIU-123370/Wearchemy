@@ -27,15 +27,17 @@
     .blob-1{ width:44vw; height:44vw; top:-14%; right:-6%; background:rgba(255,183,213,.5); }
     .blob-2{ width:36vw; height:36vw; bottom:-12%; left:-4%; background:rgba(255,222,233,.7); }
 
-    .scene{ display:flex; flex-direction:column; align-items:center; justify-content:center; gap:18px; width:100%; height:100%; }
+    .scene{ display:flex; flex-direction:column; align-items:center; justify-content:center; gap:18px; width:100%; height:100%; padding:16px; }
 
-    /* ---------- 手机机身（占屏幕 80%，保持手机比例居中） ---------- */
+    /* ---------- iPhone 17：402 × 874 pt 逻辑屏幕，12 px 机身边框 ---------- */
+    .scaler{ position:relative; flex:0 0 auto; }
     .phone{
       position:relative;
-      width: min(92vw, calc(80vh * 9 / 19.5));
-      height: min(80vh, calc(92vw * 19.5 / 9));
-      border-radius:54px;
-      padding:11px;
+      width:426px;
+      height:898px;
+      border-radius:59px;
+      padding:12px;
+      transform-origin:top left;
       background:linear-gradient(160deg,#3a2e35,#241b21 60%,#31262d);
       box-shadow:
         0 60px 120px -40px rgba(122,52,86,.45),
@@ -45,7 +47,7 @@
     }
     .screen{
       position:relative; width:100%; height:100%;
-      border-radius:44px; overflow:hidden;
+      border-radius:49px; overflow:hidden;
       background:#fffcfd;
       display:flex; flex-direction:column;
       box-shadow:inset 0 0 0 1px rgba(0,0,0,.08);
@@ -53,7 +55,7 @@
 
     /* ---------- 状态栏 ---------- */
     .statusbar{
-      flex:0 0 auto; height:46px; padding:14px 28px 0;
+      flex:0 0 auto; height:54px; padding:16px 30px 0;
       display:flex; justify-content:space-between; align-items:center;
       font-size:14.5px; font-weight:600; letter-spacing:.01em;
       background:linear-gradient(180deg, rgba(255,252,253,.92), rgba(255,252,253,.75));
@@ -64,7 +66,7 @@
 
     /* ---------- 微信导航栏 + 胶囊 ---------- */
     .wxbar{
-      flex:0 0 auto; height:46px; position:relative; z-index:6;
+      flex:0 0 auto; height:50px; position:relative; z-index:6;
       display:grid; place-items:center;
       background:linear-gradient(180deg, rgba(255,252,253,.92), rgba(255,252,253,.75));
       border-bottom:1px solid rgba(214,164,186,.12);
@@ -95,8 +97,8 @@
 
     /* 刘海 */
     .notch{
-      position:absolute; top:11px; left:50%; transform:translateX(-50%);
-      width:118px; height:32px; border-radius:999px; background:#171114; z-index:8;
+      position:absolute; top:12px; left:50%; transform:translateX(-50%);
+      width:126px; height:37px; border-radius:999px; background:#171114; z-index:8;
       box-shadow:inset 0 1px 2px rgba(255,255,255,.08);
     }
     .notch::after{ content:""; position:absolute; right:22px; top:50%; transform:translateY(-50%);
@@ -162,8 +164,11 @@
     .scene-caption b{ color:var(--rose-deep); font-weight:500; }
     .scene-caption .dot{ width:4px; height:4px; border-radius:50%; background:var(--ink-faint); }
 
-    /* 窄屏/矮屏：整机等比缩放 */
-    .scaler{ transform-origin:center center; }
+    /* 矮屏隐藏说明，把空间完整留给设备本身。 */
+    @media (max-height:720px){
+      .scene{ gap:0; padding:10px; }
+      .scene-caption{ display:none; }
+    }
   </style>
 </head>
 <body>
@@ -240,7 +245,24 @@
     }
     tick(); setInterval(tick, 15000);
 
-    // 80% 尺寸由 CSS 按比例控制，无需 JS 缩放
+    // 固定 iPhone 17 逻辑尺寸，再按浏览器可用空间等比缩小，避免比例漂移。
+    const scaler = document.getElementById("scaler");
+    const phone = scaler.querySelector(".phone");
+    const caption = document.querySelector(".scene-caption");
+    const PHONE_WIDTH = 426;
+    const PHONE_HEIGHT = 898;
+    function fitPhone(){
+      const captionStyle = getComputedStyle(caption);
+      const captionSpace = captionStyle.display === "none" ? 0 : caption.offsetHeight + 18;
+      const availableWidth = Math.max(1, window.innerWidth - 32);
+      const availableHeight = Math.max(1, window.innerHeight - captionSpace - 32);
+      const scale = Math.min(1, availableWidth / PHONE_WIDTH, availableHeight / PHONE_HEIGHT);
+      scaler.style.width = `${PHONE_WIDTH * scale}px`;
+      scaler.style.height = `${PHONE_HEIGHT * scale}px`;
+      phone.style.transform = `scale(${scale})`;
+    }
+    fitPhone();
+    window.addEventListener("resize", fitPhone, { passive:true });
 
     // 胶囊：更多面板
     const mask = document.getElementById("sheetMask");
