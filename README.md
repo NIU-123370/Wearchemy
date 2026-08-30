@@ -1,8 +1,7 @@
 ﻿# 穿搭炼金屋 (Wearchemy)
 
-1. **iOS 手机访问**：[https://fundamentals-tunnel-gender-raymond.trycloudflare.com](https://fundamentals-tunnel-gender-raymond.trycloudflare.com)
-2. **网页版模拟器**：[https://fundamentals-tunnel-gender-raymond.trycloudflare.com/miniprogram.html](https://fundamentals-tunnel-gender-raymond.trycloudflare.com/miniprogram.html)
-3. **网页版**：[http://111.62.156.213:10350](http://111.62.156.213:10350)
+1. **网页手机访问**：[http://111.62.156.213:10350](http://111.62.156.213:10350)
+2. **网页版模拟器**：[http://111.62.156.213:10350/miniprogram.html](http://111.62.156.213:10350/miniprogram.html)
 
 ![Wearchemy 白粉液态玻璃项目展示](assets/wearchemy-hero.png)
 
